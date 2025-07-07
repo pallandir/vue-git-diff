@@ -1,21 +1,26 @@
 <template>
-  <div class="container" v-for="diffItem in diffList" :key="diffItem.diff">
+  <div
+    class="container"
+    v-for="(diffItem, diifIndex) in diffList"
+    :key="diffIndex"
+  >
     <code>
       <p
         v-for="(line, index) in diffItem.diff.split('\n')"
+        :key="index"
         class="preserve-space"
-        :class="getBaseClass(line, index)"
+        :class="getBaseClass(line, index, diffItem)"
       >
-        <span class="index">{{ getCurrentIndex(line, index) }}</span>
+        <span class="index">{{ getLineIndex(line, index, diffItem) }}</span>
         <span :class="index === 0 ? '' : 'key'"> {{ getKey(line) }}</span>
         <span class="value">{{ getValue(line) }} </span>
-      </p></code
-    >
+      </p>
+    </code>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from "vue";
+import { reactive } from "vue";
 import { diffType } from "../Types/diffTypes";
 
 const diffList = reactive<diffType[]>([
@@ -32,56 +37,53 @@ const diffList = reactive<diffType[]>([
   },
 ]);
 
-let tokens = ref<string[]>([]);
-let start = ref<number>(0);
-let offset = ref<number>(0);
-const getCurrentIndex = (line: string, index: number) => {
-  if (index === 0) {
-    tokens.value = line.split(" ");
-    start.value = Math.abs(Number(tokens.value[1].split(",")[0]));
-    offset.value = Math.abs(Number(tokens.value[1].split(",")[1]));
+function parseStartIndex(header: string): number {
+  const match = header.match(/^@@ -\d+,\d+ \+(\d+),?/);
+  return match ? parseInt(match[1]) : 0;
+}
+
+function getLineIndex(
+  line: string,
+  index: number,
+  diffItem: diffType,
+): string | number {
+  if (index === 0) return "";
+  const headerLine = diffItem.diff.split("\n")[0];
+  const startLine = parseStartIndex(headerLine);
+  return startLine + index - 1;
+}
+
+function getClassColor(line: string): string {
+  if (line.startsWith("+")) return "content-added";
+  if (line.startsWith("-")) return "content-deleted";
+  return "";
+}
+
+function getBaseClass(
+  line: string,
+  index: number,
+  diffItem: diffType,
+): string[] {
+  const classes = [];
+  if (index === 0) classes.push("first-line");
+  else {
+    classes.push(getClassColor(line));
+    if (index > 1 && diffItem.diff.split("\n")[index - 1] === "") {
+      classes.push("add-margin");
+    }
   }
+  return classes;
+}
 
-  return start.value + index;
-};
+function getKey(line: string): string {
+  if (!line.includes(":")) return line.trim();
+  return line.split(":")[0] + " :";
+}
 
-const getClassColor = (line: string, index: number) => {
-  if (index === 0) {
-    return "first-line";
-  }
-  if (line.startsWith("+")) {
-    return "content-added";
-  } else if (line.startsWith("-")) {
-    return "content-deleted";
-  } else {
-    return "";
-  }
-};
-
-const checkUpdatedContentIndex = (index: number) => {
-  console.log(offset.value, index);
-  if (index == offset.value+1) {
-    return true;
-  }
-
-  return false;
-};
-
-const getBaseClass = (line: string, index: number) => {
-  console.log("in base class");
-  const color = getClassColor(line, index);
-  const margin = checkUpdatedContentIndex(index) ? "add-margin" : "";
-
-  return [color, margin];
-};
-
-const getKey = (line: string) => {
-  return line.includes(": ") ? `${line.split(": ")[0]} :` : line.trim();
-};
-
-const getValue = (line: string) => {
-  return line.split(": ")[1];
-};
+function getValue(line: string): string {
+  if (!line.includes(":")) return "";
+  return line.split(":").slice(1).join(":").trim();
+}
 </script>
 
 <style scoped>
